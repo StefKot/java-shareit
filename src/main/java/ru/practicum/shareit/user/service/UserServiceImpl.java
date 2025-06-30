@@ -3,11 +3,15 @@ package ru.practicum.shareit.user.service;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import ru.practicum.shareit.user.User;
+import ru.practicum.shareit.user.UserMapper;
 import ru.practicum.shareit.user.UserRepository;
-import ru.practicum.shareit.user.exceptions.UserInvalidEmailNotFoundException;
-import ru.practicum.shareit.user.exceptions.UserInvalidException;
+import ru.practicum.shareit.user.dto.UserDto;
+import ru.practicum.shareit.user.exceptions.UserEmailAlreadyExistsException;
+import ru.practicum.shareit.user.exceptions.UserNotFoundException;
 
 import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -15,68 +19,59 @@ public class UserServiceImpl implements UserService {
     private final UserRepository repository;
 
     @Override
-    public List<User> getAllUsers() {
-        return repository.findAll();
+    public List<UserDto> getAllUsers() {
+        return repository.findAll().stream()
+                .map(UserMapper::toUserDto)
+                .collect(Collectors.toList());
     }
 
     @Override
-    public User getUser(Long userId) {
-        if (userId == null || userId <= 0 || repository.findAll().getLast().getId() < userId || repository.findAll().stream().noneMatch(u -> u.getId().equals(userId))) {
-            throw new UserInvalidEmailNotFoundException("User with id = " + userId + " not found");
-        }
-        return repository.getUser(userId);
+    public UserDto getUserById(Long userId) {
+        User user = findUserByIdOrThrow(userId);
+        return UserMapper.toUserDto(user);
     }
 
     @Override
     public void deleteUser(Long userId) {
-        if (userId == null || userId <= 0 || repository.findAll().getLast().getId() < userId) {
-            throw new UserInvalidEmailNotFoundException("User with id = " + userId + " not found");
-        }
-        repository.deleteUser(userId);
+        findUserByIdOrThrow(userId);
+        repository.deleteById(userId);
     }
 
     @Override
-    public User saveUser(User user) {
-        if (user.getEmail() == null || user.getEmail().isBlank()) {
-            throw new UserInvalidEmailNotFoundException("Email is blank", user);
+    public UserDto createUser(UserDto userDto) {
+        if (repository.findByEmail(userDto.getEmail()) != null) {
+            throw new UserEmailAlreadyExistsException("Email " + userDto.getEmail() + " already exists.");
         }
-        if (!user.getEmail().contains("@")) {
-            throw new UserInvalidEmailNotFoundException("Email is not valid", user);
-        }
-        if (repository.findAll().stream()
-                .anyMatch(u -> u.getEmail().equals(user.getEmail()))) {
-            throw new UserInvalidException("Email already exists", user);
-        }
-        return repository.save(user);
+        User user = UserMapper.toUser(userDto);
+        User savedUser = repository.save(user);
+        return UserMapper.toUserDto(savedUser);
     }
 
     @Override
-    public User update(User user, Long userId) {
-        if (userId == null || userId <= 0 || repository.findAll().getLast().getId() < userId
-                || repository.findAll().stream().noneMatch(u -> u.getId().equals(userId))) {
-            throw new UserInvalidEmailNotFoundException("User with id = " + userId + " not found");
-        }
-        if (user.getEmail() == null && user.getName() == null) {
-            throw new UserInvalidEmailNotFoundException("Email or name is blank", user);
-        }
-        if (user.getEmail() != null && user.getName() != null && user.getEmail().contains("@")) {
-            if (repository.findAll().stream()
-                    .anyMatch(u -> u.getEmail().equals(user.getEmail()))) {
-                throw new UserInvalidException("Email already exists", user);
-            }
-            return repository.update(user, userId).isPresent() ? repository.update(user, userId).get() : null;
-        }
-        if (user.getEmail() != null && user.getName() == null && user.getEmail().contains("@")) {
-            if (repository.findAll().stream()
-                    .anyMatch(u -> u.getEmail().equals(user.getEmail()))) {
-                throw new UserInvalidException("Email already exists", user);
-            }
-            return repository.update(user, "email", userId).isPresent() ? repository.update(user, "email", userId).get() : null;
+    public UserDto updateUser(Long userId, UserDto userDto) {
+        User existingUser = findUserByIdOrThrow(userId);
 
+        if (userDto.getEmail() != null && !userDto.getEmail().isBlank()) {
+            User userWithSameEmail = repository.findByEmail(userDto.getEmail());
+            if (userWithSameEmail != null && !Objects.equals(userWithSameEmail.getId(), userId)) {
+                throw new UserEmailAlreadyExistsException("Email " + userDto.getEmail() + " already exists.");
+            }
+            existingUser.setEmail(userDto.getEmail());
         }
-        if (user.getEmail() == null && user.getName() != null) {
-            return repository.update(user, "name", userId).isPresent() ? repository.update(user, "name", userId).get() : null;
+
+        if (userDto.getName() != null && !userDto.getName().isBlank()) {
+            existingUser.setName(userDto.getName());
         }
-        return null;
+
+        User updatedUser = repository.save(existingUser);
+        return UserMapper.toUserDto(updatedUser);
+    }
+
+    private User findUserByIdOrThrow(Long userId) {
+        User user = repository.findById(userId);
+        if (user == null) {
+            throw new UserNotFoundException("User with id = " + userId + " not found");
+        }
+        return user;
     }
 }
