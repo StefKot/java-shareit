@@ -80,6 +80,7 @@ public class BookingServiceImpl implements BookingService {
         return BookingMapper.toResponseDto(booking);
     }
 
+
     @Override
     public List<BookingResponseDto> getUserBookings(Long userId, String state) {
         userService.getById(userId);

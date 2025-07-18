@@ -54,9 +54,10 @@ public class BookingInfoServiceImpl implements BookingInfoService {
     }
 
     @Override
-    public Optional<Booking> findLastUserBookingForItem(Long userId, Long itemId) {
+    public Optional<BookingShortDto> findLastUserBookingForItem(Long userId, Long itemId) {
         return bookingRepository.findFirstByBookerIdAndItemIdAndEndBeforeOrderByEndDesc(
-                userId, itemId, LocalDateTime.now());
+                        userId, itemId, LocalDateTime.now())
+                .map(this::convertToShortDto);
     }
 
     @Override

@@ -1,7 +1,6 @@
 package ru.practicum.shareit.booking.service;
 
 import ru.practicum.shareit.booking.dto.BookingShortDto;
-import ru.practicum.shareit.booking.model.Booking;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -16,7 +15,7 @@ public interface BookingInfoService {
 
     boolean hasUserBookedItem(Long userId, Long itemId);
 
-    Optional<Booking> findLastUserBookingForItem(Long userId, Long itemId);
+    Optional<BookingShortDto> findLastUserBookingForItem(Long userId, Long itemId);
 
     boolean isItemAvailableForDates(Long itemId, LocalDateTime start, LocalDateTime end);
 
