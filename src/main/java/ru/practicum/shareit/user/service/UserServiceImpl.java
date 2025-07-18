@@ -1,9 +1,9 @@
 package ru.practicum.shareit.user.service;
 
 import lombok.RequiredArgsConstructor;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.practicum.shareit.exception.ConflictException;
 import ru.practicum.shareit.exception.NotFoundException;
 import ru.practicum.shareit.exception.ValidationException;
 import ru.practicum.shareit.user.model.User;
@@ -21,11 +21,7 @@ public class UserServiceImpl implements UserService {
     @Transactional
     public User create(User user) {
         validateUser(user);
-        try {
-            return userRepository.save(user);
-        } catch (DataIntegrityViolationException e) {
-            throw new ValidationException("Email уже используется");
-        }
+        return userRepository.save(user);
     }
 
     @Override
@@ -38,8 +34,8 @@ public class UserServiceImpl implements UserService {
         }
 
         if (user.getEmail() != null && !user.getEmail().equals(existingUser.getEmail())) {
-            if (userRepository.existsByEmailAndIdNot(user.getEmail(), userId)) {
-                throw new ValidationException("Email уже используется другим пользователем");
+            if (userRepository.existsByEmail(user.getEmail())) {
+                throw new ConflictException("Email уже используется другим пользователем");
             }
             existingUser.setEmail(user.getEmail());
         }

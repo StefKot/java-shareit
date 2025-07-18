@@ -2,10 +2,7 @@ package ru.practicum.shareit.item.controller;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import ru.practicum.shareit.exception.NotFoundException;
 import ru.practicum.shareit.item.dto.CommentDto;
 import ru.practicum.shareit.item.dto.ItemDto;
 import ru.practicum.shareit.item.mapper.ItemMapper;
@@ -32,18 +29,14 @@ public class ItemController {
     }
 
     @PatchMapping("/{itemId}")
-    public ResponseEntity<?> updateItem(
+    public ItemDto updateItem(
             @PathVariable Long itemId,
             @RequestBody ItemDto itemDto,
             @RequestHeader("X-Sharer-User-Id") Long ownerId) {
-        try {
-            itemDto.setId(itemId);
-            Item item = ItemMapper.toEntity(itemDto);
-            Item updatedItem = itemService.update(item, ownerId);
-            return ResponseEntity.ok(ItemMapper.toDto(updatedItem));
-        } catch (NotFoundException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
-        }
+        itemDto.setId(itemId);
+        Item item = ItemMapper.toEntity(itemDto);
+        Item updatedItem = itemService.update(item, ownerId);
+        return ItemMapper.toDto(updatedItem);
     }
 
     @GetMapping("/{itemId}")
@@ -75,7 +68,7 @@ public class ItemController {
     @PostMapping("/{itemId}/comment")
     public CommentDto addComment(
             @PathVariable Long itemId,
-            @RequestBody CommentDto commentDto,
+            @RequestBody @Valid CommentDto commentDto,
             @RequestHeader("X-Sharer-User-Id") Long userId) {
         return commentService.addComment(itemId, userId, commentDto);
     }

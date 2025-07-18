@@ -2,6 +2,8 @@ package ru.practicum.shareit.item.mapper;
 
 import ru.practicum.shareit.item.dto.CommentDto;
 import ru.practicum.shareit.item.model.Comment;
+import ru.practicum.shareit.item.model.Item;
+import ru.practicum.shareit.user.model.User;
 
 import java.time.LocalDateTime;
 
@@ -15,10 +17,12 @@ public class CommentMapper {
                 .build();
     }
 
-    public static Comment toComment(CommentDto commentDto) {
+    public static Comment toEntity(CommentDto commentDto, User author, Item item) {
         return Comment.builder()
                 .text(commentDto.getText())
-                .created(commentDto.getCreated() != null ? commentDto.getCreated() : LocalDateTime.now())
+                .item(item)
+                .author(author)
+                .created(LocalDateTime.now())
                 .build();
     }
 }

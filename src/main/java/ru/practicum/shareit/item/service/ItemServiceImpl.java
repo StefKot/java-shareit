@@ -3,8 +3,10 @@ package ru.practicum.shareit.item.service;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.practicum.shareit.booking.dto.BookingShortDto;
 import ru.practicum.shareit.booking.service.BookingInfoService;
-import ru.practicum.shareit.exception.NotFoundException;
+import ru.practicum.shareit.exception.AccessDeniedException;
+import ru.practicum.shareit.exception.ItemNotFoundException;
 import ru.practicum.shareit.exception.ValidationException;
 import ru.practicum.shareit.item.dto.CommentDto;
 import ru.practicum.shareit.item.dto.ItemDto;
@@ -43,7 +45,7 @@ public class ItemServiceImpl implements ItemService {
         Item existingItem = getById(item.getId());
 
         if (!existingItem.getOwner().getId().equals(ownerId)) {
-            throw new NotFoundException("Редактировать вещь может только владелец");
+            throw new AccessDeniedException("Редактировать вещь может только владелец");
         }
 
         updateItemFields(existingItem, item);
@@ -53,7 +55,7 @@ public class ItemServiceImpl implements ItemService {
     @Override
     public Item getById(Long itemId) {
         return itemRepository.findById(itemId)
-                .orElseThrow(() -> new NotFoundException("Вещь с ID " + itemId + " не найдена"));
+                .orElseThrow(() -> new ItemNotFoundException("Вещь с ID " + itemId + " не найдена"));
     }
 
     @Override
@@ -61,7 +63,7 @@ public class ItemServiceImpl implements ItemService {
         Item item = getById(itemId);
         ItemDto itemDto = ItemMapper.toDto(item);
 
-        if (userId != null && item.getOwner().getId().equals(userId)) {
+        if (item.getOwner().getId().equals(userId)) {
             setBookingInfo(itemDto, itemId);
         }
 
@@ -69,18 +71,26 @@ public class ItemServiceImpl implements ItemService {
         return itemDto;
     }
 
+
     @Override
     public List<ItemDto> getAllByOwner(Long ownerId) {
+        userService.getById(ownerId);
         List<Item> items = itemRepository.findByOwnerId(ownerId);
-        Map<Long, List<CommentDto>> comments = commentInfoService.getCommentsByItemIds(
-                items.stream().map(Item::getId).collect(Collectors.toList())
-        );
+        if (items.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<Long> itemIds = items.stream().map(Item::getId).collect(Collectors.toList());
+
+        Map<Long, List<CommentDto>> commentsMap = commentInfoService.getCommentsByItemIds(itemIds);
+        Map<Long, BookingShortDto> lastBookingsMap = bookingInfoService.findLastBookingsForItems(itemIds);
+        Map<Long, BookingShortDto> nextBookingsMap = bookingInfoService.findNextBookingsForItems(itemIds);
 
         return items.stream()
                 .map(item -> {
                     ItemDto dto = ItemMapper.toDto(item);
-                    setBookingInfo(dto, item.getId());
-                    dto.setComments(comments.getOrDefault(item.getId(), Collections.emptyList()));
+                    dto.setComments(commentsMap.getOrDefault(item.getId(), Collections.emptyList()));
+                    dto.setLastBooking(lastBookingsMap.get(item.getId()));
+                    dto.setNextBooking(nextBookingsMap.get(item.getId()));
                     return dto;
                 })
                 .collect(Collectors.toList());
@@ -101,7 +111,7 @@ public class ItemServiceImpl implements ItemService {
     public void delete(Long itemId, Long ownerId) {
         Item item = getById(itemId);
         if (!item.getOwner().getId().equals(ownerId)) {
-            throw new NotFoundException("Удалять вещь может только владелец");
+            throw new AccessDeniedException("Удалять вещь может только владелец");
         }
         itemRepository.deleteById(itemId);
     }
@@ -115,12 +125,17 @@ public class ItemServiceImpl implements ItemService {
 
     @Override
     public List<ItemDto> findAllByRequestIdIn(List<Long> requestIds) {
-        if (requestIds.isEmpty()) {
+        if (requestIds == null || requestIds.isEmpty()) {
             return Collections.emptyList();
         }
         return itemRepository.findAllByRequestIdIn(requestIds).stream()
                 .map(ItemMapper::toDto)
                 .collect(Collectors.toList());
+    }
+
+    private void setBookingInfo(ItemDto dto, Long itemId) {
+        dto.setLastBooking(bookingInfoService.getLastBooking(itemId));
+        dto.setNextBooking(bookingInfoService.getNextBooking(itemId));
     }
 
     private void updateItemFields(Item existingItem, Item newItem) {
@@ -138,11 +153,6 @@ public class ItemServiceImpl implements ItemService {
         }
     }
 
-    private void setBookingInfo(ItemDto dto, Long itemId) {
-        dto.setLastBooking(bookingInfoService.getLastBooking(itemId));
-        dto.setNextBooking(bookingInfoService.getNextBooking(itemId));
-    }
-
     private void validateItem(Item item) {
         if (item.getName() == null || item.getName().isBlank()) {
             throw new ValidationException("Название вещи не может быть пустым");
@@ -152,12 +162,6 @@ public class ItemServiceImpl implements ItemService {
         }
         if (item.getAvailable() == null) {
             throw new ValidationException("Статус доступности должен быть указан");
-        }
-        if (item.getName().length() > 255) {
-            throw new ValidationException("Название вещи слишком длинное");
-        }
-        if (item.getDescription().length() > 1000) {
-            throw new ValidationException("Описание вещи слишком длинное");
         }
     }
 }

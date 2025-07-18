@@ -2,80 +2,66 @@ package ru.practicum.shareit.exception;
 
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.ControllerAdvice;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import java.util.Map;
 import java.util.stream.Collectors;
 
-@ControllerAdvice
+@RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
 
-    @ExceptionHandler
-    public ResponseEntity<AppError> catchNotFoundException(NotFoundException e) {
-        log.error(e.getMessage(), e);
-        return new ResponseEntity<>(new AppError(HttpStatus.NOT_FOUND.value(), e.getMessage()),
-                HttpStatus.NOT_FOUND);
+    @ExceptionHandler({NotFoundException.class, UserNotFoundException.class, ItemNotFoundException.class})
+    public ResponseEntity<Map<String, String>> catchNotFoundException(RuntimeException e) {
+        log.warn("404 - Ресурс не найден: {}", e.getMessage());
+        return new ResponseEntity<>(Map.of("error", e.getMessage()), HttpStatus.NOT_FOUND);
     }
 
-    @ExceptionHandler
-    public ResponseEntity<AppError> catchValidationException(ValidationException e) {
-        log.error(e.getMessage(), e);
-        return new ResponseEntity<>(new AppError(HttpStatus.CONFLICT.value(), e.getMessage()),
-                HttpStatus.CONFLICT);
-    }
-
-    @ExceptionHandler
-    public ResponseEntity<AppError> catchUnavailableItemException(UnavailableItemException e) {
-        log.error(e.getMessage(), e);
-        return new ResponseEntity<>(new AppError(HttpStatus.INTERNAL_SERVER_ERROR.value(), e.getMessage()),
-                HttpStatus.INTERNAL_SERVER_ERROR);
-    }
-
-    @ExceptionHandler
-    public ResponseEntity<AppError> catchBookingException(BookingException e) {
-        log.error(e.getMessage(), e);
-        return new ResponseEntity<>(new AppError(HttpStatus.BAD_REQUEST.value(), e.getMessage()),
-                HttpStatus.BAD_REQUEST);
-    }
-
-    @ExceptionHandler(RuntimeException.class)
-    public ResponseEntity<AppError> handleRuntimeException(RuntimeException ex) {
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<Map<String, String>> handleDataIntegrityViolation(DataIntegrityViolationException e) {
+        log.warn("409 - Конфликт данных (вероятно, дубликат email): {}", e.getMessage());
         return new ResponseEntity<>(
-                new AppError(HttpStatus.INTERNAL_SERVER_ERROR.value(), ex.getMessage()),
-                HttpStatus.INTERNAL_SERVER_ERROR
+                Map.of("error", "Пользователь с таким email уже существует."),
+                HttpStatus.CONFLICT
         );
     }
 
-    @ExceptionHandler(AccessDeniedException.class)
-    public ResponseEntity<AppError> handleAccessDenied(AccessDeniedException ex) {
-        return new ResponseEntity<>(
-                new AppError(HttpStatus.FORBIDDEN.value(), ex.getMessage()),
-                HttpStatus.FORBIDDEN
-        );
+    @ExceptionHandler({ValidationException.class, UnavailableItemException.class, BookingException.class, CommentException.class})
+    public ResponseEntity<Map<String, String>> catchBadRequestExceptions(RuntimeException e) {
+        log.warn("400 - Некорректный запрос: {}", e.getMessage());
+        return new ResponseEntity<>(Map.of("error", e.getMessage()), HttpStatus.BAD_REQUEST);
     }
 
-    @ExceptionHandler(CommentException.class)
-    public ResponseEntity<AppError> handleCommentException(CommentException ex) {
-        log.error(ex.getMessage(), ex);
-        return new ResponseEntity<>(
-                new AppError(HttpStatus.BAD_REQUEST.value(), ex.getMessage()),
-                HttpStatus.BAD_REQUEST
-        );
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<Map<String, String>> handleMethodArgumentNotValid(MethodArgumentNotValidException e) {
+        String errorMessage = e.getBindingResult().getFieldErrors().get(0).getDefaultMessage();
+        log.warn("400 - Ошибка валидации аргумента: {}", errorMessage);
+        return new ResponseEntity<>(Map.of("error", errorMessage), HttpStatus.BAD_REQUEST);
     }
 
     @ExceptionHandler(ConstraintViolationException.class)
-    public ResponseEntity<AppError> handleConstraintViolation(ConstraintViolationException ex) {
-        String message = ex.getConstraintViolations().stream()
+    public ResponseEntity<Map<String, String>> handleConstraintViolation(ConstraintViolationException e) {
+        String message = e.getConstraintViolations().stream()
                 .map(v -> v.getPropertyPath() + ": " + v.getMessage())
                 .collect(Collectors.joining(", "));
-
-        return new ResponseEntity<>(
-                new AppError(HttpStatus.BAD_REQUEST.value(), message),
-                HttpStatus.BAD_REQUEST
-        );
+        log.warn("400 - Нарушение ограничений: {}", message);
+        return new ResponseEntity<>(Map.of("error", message), HttpStatus.BAD_REQUEST);
     }
 
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<Map<String, String>> handleAccessDenied(AccessDeniedException e) {
+        log.warn("403 - Доступ запрещен: {}", e.getMessage());
+        return new ResponseEntity<>(Map.of("error", e.getMessage()), HttpStatus.FORBIDDEN);
+    }
+
+    @ExceptionHandler(Throwable.class)
+    public ResponseEntity<Map<String, String>> handleUnexpectedException(final Throwable e) {
+        log.error("500 - Произошла непредвиденная ошибка: ", e);
+        return new ResponseEntity<>(Map.of("error", "Произошла внутренняя ошибка сервера."), HttpStatus.INTERNAL_SERVER_ERROR);
+    }
 }
