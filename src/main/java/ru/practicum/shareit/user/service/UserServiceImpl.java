@@ -2,76 +2,82 @@ package ru.practicum.shareit.user.service;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import ru.practicum.shareit.user.User;
-import ru.practicum.shareit.user.UserMapper;
-import ru.practicum.shareit.user.UserRepository;
-import ru.practicum.shareit.user.dto.UserDto;
-import ru.practicum.shareit.user.exceptions.UserEmailAlreadyExistsException;
-import ru.practicum.shareit.user.exceptions.UserNotFoundException;
+import org.springframework.transaction.annotation.Transactional;
+import ru.practicum.shareit.exception.ConflictException;
+import ru.practicum.shareit.exception.NotFoundException;
+import ru.practicum.shareit.exception.ValidationException;
+import ru.practicum.shareit.user.model.User;
+import ru.practicum.shareit.user.repository.UserRepository;
 
 import java.util.List;
-import java.util.Objects;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class UserServiceImpl implements UserService {
-    private final UserRepository repository;
+    private final UserRepository userRepository;
 
     @Override
-    public List<UserDto> getAllUsers() {
-        return repository.findAll().stream()
-                .map(UserMapper::toUserDto)
-                .collect(Collectors.toList());
+    @Transactional
+    public User create(User user) {
+        validateUser(user);
+        return userRepository.save(user);
     }
 
     @Override
-    public UserDto getUserById(Long userId) {
-        User user = findUserByIdOrThrow(userId);
-        return UserMapper.toUserDto(user);
-    }
+    @Transactional
+    public User update(Long userId, User user) {
+        User existingUser = getById(userId);
 
-    @Override
-    public void deleteUser(Long userId) {
-        findUserByIdOrThrow(userId);
-        repository.deleteById(userId);
-    }
-
-    @Override
-    public UserDto createUser(UserDto userDto) {
-        if (repository.findByEmail(userDto.getEmail()) != null) {
-            throw new UserEmailAlreadyExistsException("Email " + userDto.getEmail() + " already exists.");
+        if (user.getName() != null) {
+            existingUser.setName(user.getName());
         }
-        User user = UserMapper.toUser(userDto);
-        User savedUser = repository.save(user);
-        return UserMapper.toUserDto(savedUser);
-    }
 
-    @Override
-    public UserDto updateUser(Long userId, UserDto userDto) {
-        User existingUser = findUserByIdOrThrow(userId);
-
-        if (userDto.getEmail() != null && !userDto.getEmail().isBlank()) {
-            User userWithSameEmail = repository.findByEmail(userDto.getEmail());
-            if (userWithSameEmail != null && !Objects.equals(userWithSameEmail.getId(), userId)) {
-                throw new UserEmailAlreadyExistsException("Email " + userDto.getEmail() + " already exists.");
+        if (user.getEmail() != null && !user.getEmail().equals(existingUser.getEmail())) {
+            if (userRepository.existsByEmail(user.getEmail())) {
+                throw new ConflictException("Email уже используется другим пользователем");
             }
-            existingUser.setEmail(userDto.getEmail());
+            existingUser.setEmail(user.getEmail());
         }
 
-        if (userDto.getName() != null && !userDto.getName().isBlank()) {
-            existingUser.setName(userDto.getName());
-        }
-
-        User updatedUser = repository.save(existingUser);
-        return UserMapper.toUserDto(updatedUser);
+        return userRepository.save(existingUser);
     }
 
-    private User findUserByIdOrThrow(Long userId) {
-        User user = repository.findById(userId);
-        if (user == null) {
-            throw new UserNotFoundException("User with id = " + userId + " not found");
+    @Override
+    @Transactional(readOnly = true)
+    public User getById(Long id) {
+        return userRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Пользователь с ID " + id + " не найден"));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<User> getAll() {
+        return userRepository.findAll();
+    }
+
+    @Override
+    @Transactional
+    public void delete(Long id) {
+        userRepository.deleteById(id);
+    }
+
+    @Override
+    public boolean emailExists(String email) {
+        return userRepository.existsByEmail(email);
+    }
+
+    private void validateUser(User user) {
+        if (user.getName() == null || user.getName().isBlank()) {
+            throw new ValidationException("Имя пользователя не может быть пустым");
         }
-        return user;
+
+        if (user.getEmail() == null || user.getEmail().isBlank()) {
+            throw new ValidationException("Email не может быть пустым");
+        }
+
+        if (!user.getEmail().contains("@")) {
+            throw new ValidationException("Некорректный формат email");
+        }
     }
 }
