@@ -32,21 +32,22 @@ public class ItemRequestServiceImpl implements ItemRequestService {
     @Override
     @Transactional
     public ItemRequestDto createItemRequest(Long userId, ItemRequestDto itemRequestDto) {
-        User requester = userRepository.findById(userId)
-                .orElseThrow(() -> new UserNotFoundException("Пользователь не найден"));
+        User requester = findUserByIdOrThrow(userId);
 
         ItemRequest request = ItemRequestMapper.toItemRequest(itemRequestDto, requester);
-        request.setRequester(requester);
-        request.setCreated(LocalDateTime.now());
 
-        ItemRequest savedRequest = itemRequestRepository.save(request);
+        ItemRequest newRequest = new ItemRequest();
+        newRequest.setDescription(itemRequestDto.getDescription());
+        newRequest.setRequester(requester);
+        newRequest.setCreated(LocalDateTime.now());
+
+        ItemRequest savedRequest = itemRequestRepository.save(newRequest);
         return ItemRequestMapper.toItemRequestDto(savedRequest);
     }
 
     @Override
     public List<ItemRequestDto> getUserRequests(Long userId) {
-        userRepository.findById(userId)
-                .orElseThrow(() -> new UserNotFoundException("Пользователь не найден"));
+        findUserByIdOrThrow(userId);
 
         List<ItemRequest> requests = itemRequestRepository
                 .findByRequesterId(userId, Sort.by("created").descending());
@@ -68,8 +69,7 @@ public class ItemRequestServiceImpl implements ItemRequestService {
 
     @Override
     public List<ItemRequestDto> getAllRequests(Long userId, int from, int size) {
-        userRepository.findById(userId)
-                .orElseThrow(() -> new UserNotFoundException("Пользователь не найден"));
+        findUserByIdOrThrow(userId);
 
         List<ItemRequest> requests = itemRequestRepository.findByRequesterIdNot(userId,
                 Sort.by("created").descending());
@@ -91,13 +91,10 @@ public class ItemRequestServiceImpl implements ItemRequestService {
 
     @Override
     public ItemRequestDto getRequestById(Long requestId, Long userId) {
+        findUserByIdOrThrow(userId);
+
         ItemRequest request = itemRequestRepository.findById(requestId)
                 .orElseThrow(() -> new RequestNotFoundException("Запрос не найден"));
-
-        if (!request.getRequester().getId().equals(userId)) {
-            userRepository.findById(userId)
-                    .orElseThrow(() -> new UserNotFoundException("Пользователь не найден"));
-        }
 
         List<ItemDto> items = itemRepository.findByRequestId(requestId)
                 .stream()
@@ -105,5 +102,10 @@ public class ItemRequestServiceImpl implements ItemRequestService {
                 .collect(Collectors.toList());
 
         return ItemRequestMapper.toItemRequestDto(request, items);
+    }
+
+    private User findUserByIdOrThrow(Long userId) {
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException("Пользователь с id=" + userId + " не найден"));
     }
 }

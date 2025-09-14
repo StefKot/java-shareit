@@ -46,11 +46,6 @@ public class BookingServiceImpl implements BookingService {
             throw new AccessDeniedException("Собственник не может забронировать свой собственный предмет");
         }
 
-        if (bookingDto.getStart().isAfter(bookingDto.getEnd()) ||
-                bookingDto.getStart().equals(bookingDto.getEnd())) {
-            throw new ValidationException("Неверные даты бронирования");
-        }
-
         Booking booking = new Booking();
         booking.setStart(bookingDto.getStart());
         booking.setEnd(bookingDto.getEnd());

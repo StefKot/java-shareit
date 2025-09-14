@@ -13,7 +13,6 @@ import ru.practicum.shareit.booking.repository.BookingRepository;
 import ru.practicum.shareit.booking.service.BookingService;
 import ru.practicum.shareit.booking.status.BookingStatus;
 import ru.practicum.shareit.exception.AccessDeniedException;
-import ru.practicum.shareit.exception.ValidationException;
 import ru.practicum.shareit.item.model.Item;
 import ru.practicum.shareit.item.repository.ItemRepository;
 import ru.practicum.shareit.user.model.User;
@@ -107,16 +106,6 @@ class BookingServiceImplIntegrationTest {
         BookingCreateDto bookingDto = new BookingCreateDto(start, end, item.getId());
 
         assertThrows(RuntimeException.class,
-                () -> bookingService.createBooking(booker.getId(), bookingDto));
-    }
-
-    @Test
-    void createBooking_InvalidDates_ShouldThrowException() {
-        LocalDateTime start = LocalDateTime.now().plusHours(2);
-        LocalDateTime end = LocalDateTime.now().plusHours(1); // end before start
-        BookingCreateDto bookingDto = new BookingCreateDto(start, end, item.getId());
-
-        assertThrows(ValidationException.class,
                 () -> bookingService.createBooking(booker.getId(), bookingDto));
     }
 

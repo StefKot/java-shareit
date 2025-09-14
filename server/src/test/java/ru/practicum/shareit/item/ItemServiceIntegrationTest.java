@@ -216,15 +216,6 @@ class ItemServiceIntegrationTest {
     }
 
     @Test
-    void searchItems_WithEmptyText_ShouldReturnEmptyList() {
-        createTestItem();
-
-        List<ItemDto> result = itemService.searchItems("");
-
-        assertThat(result).isEmpty();
-    }
-
-    @Test
     void addComment_ShouldCreateCommentSuccessfully() {
         Item item = createTestItem();
         Booking completedBooking = createTestBooking(item, booker,

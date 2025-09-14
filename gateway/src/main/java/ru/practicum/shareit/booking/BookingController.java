@@ -1,5 +1,6 @@
 package ru.practicum.shareit.booking;
 
+import jakarta.validation.ValidationException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.validation.annotation.Validated;
@@ -38,6 +39,11 @@ public class BookingController {
     @PostMapping
     public ResponseEntity<Object> bookItem(@RequestHeader(USER_ID_HEADER) long userId,
                                            @RequestBody @Valid BookItemRequestDto requestDto) {
+        if (requestDto.getStart().isAfter(requestDto.getEnd()) ||
+                requestDto.getStart().equals(requestDto.getEnd())) {
+            throw new ValidationException("Неверные даты бронирования");
+        }
+
         log.info("Creating booking {}, userId={}", requestDto, userId);
         return bookingClient.bookItem(userId, requestDto);
     }

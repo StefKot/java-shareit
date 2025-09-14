@@ -8,6 +8,8 @@ import ru.practicum.shareit.exception.ValidationException;
 import ru.practicum.shareit.item.comment.CommentDto;
 import ru.practicum.shareit.item.dto.ItemDto;
 
+import java.util.Collections;
+
 import static ru.practicum.shareit.util.Constants.USER_ID_HEADER;
 
 @RestController
@@ -52,6 +54,9 @@ public class ItemController {
 
     @GetMapping("/search")
     public ResponseEntity<Object> searchItems(@RequestParam String text) {
+        if (text.trim().isEmpty()) {
+            return ResponseEntity.ok(Collections.emptyList());
+        }
         return itemClient.searchItems(text);
     }
 
